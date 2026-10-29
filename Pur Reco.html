@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Purchase Reconciliation — Books vs GST Portal</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{
+  --navy:#003366; --navy2:#004a8f; --gold:#d4af37; --ink:#0f1923; --inks:#5b6b7d; --inkf:#8696a8;
+  --rule:#e4e9ef; --bg:#f4f6f9; --w:#fff;
+  --teal:#0f766e; --teal-l:#e7f5f3;
+  --amber:#b45309; --amber-l:#fff7e6;
+  --red:#b42318; --red-l:#fef3f2;
+  --green:#15803d; --green-l:#eefbf3;
+  --blue:#1d4ed8; --blue-l:#eaf1ff;
+  color-scheme: light;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;background:var(--bg);color:var(--ink);font-size:14px;line-height:1.5;padding-top:env(safe-area-inset-top,0px)}
+header{background:linear-gradient(120deg,var(--navy) 0%,var(--navy2) 100%);color:#fff;padding:30px 28px;border-bottom:3px solid var(--gold);position:relative}
+.hcenter{text-align:center}
+.brandname{font-size:36px;font-weight:800;letter-spacing:.03em;color:#fff;line-height:1.1}
+.brandtag{font-size:13.5px;color:var(--gold);font-weight:600;margin-top:6px;letter-spacing:.03em}
+.eyebrow2{font-size:11px;letter-spacing:.12em;color:#b7c8da;margin-top:14px;font-weight:600}
+@media(max-width:640px){.hreset{position:static!important;display:block;margin:16px auto 0}.brandname{font-size:26px}}
+.wrap{max-width:1320px;margin:0 auto}
+.hrow{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.hreset{position:absolute;top:26px;right:28px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.28);color:#fff;padding:9px 16px;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s}
+.hreset:hover{background:rgba(255,255,255,.2)}
+main{padding:22px 28px 70px}
+.maintabs{display:flex;gap:4px;margin-bottom:20px;background:var(--w);border:1px solid var(--rule);border-radius:11px;padding:4px;box-shadow:0 1px 3px rgba(15,25,35,.05);max-width:1320px;margin-left:auto;margin-right:auto}
+.mtab{flex:1;padding:12px;border:none;background:none;border-radius:8px;font-size:13px;font-weight:700;color:var(--inks);cursor:pointer;transition:background .15s,color .15s}
+.mtab.active{background:var(--navy);color:#fff}
+.mtab:disabled{opacity:.4;cursor:not-allowed}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:860px){.cols{grid-template-columns:1fr}}
+.panel{background:var(--w);border:1px solid var(--rule);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,25,35,.05)}
+.panel-hd{padding:14px 18px;border-bottom:1px solid var(--rule);display:flex;align-items:center;gap:9px}
+.panel-hd .tag{width:9px;height:9px;border-radius:50%}
+.tag.books{background:var(--teal)}.tag.portal{background:var(--blue)}
+.panel-hd b{font-size:13.5px;font-weight:700}
+.panel-hd span{font-size:11.5px;color:var(--inkf)}
+.panel-bd{padding:18px}
+.dz{border:2px dashed var(--rule);border-radius:9px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s}
+.dz:hover,.dz.drag{border-color:var(--teal);background:var(--teal-l)}
+.dz.ok{border-style:solid;border-color:var(--green);background:var(--green-l)}
+.dz.err{border-style:solid;border-color:var(--red);background:var(--red-l)}
+.dz .ic{font-size:27px;margin-bottom:6px}
+.dz .t{font-size:13px;font-weight:600}
+.dz .s{font-size:11.5px;color:var(--inkf);margin-top:3px}
+input[type=file]{display:none}
+.filerow{margin-top:10px;font-size:12px;background:var(--bg);border:1px solid var(--rule);border-radius:7px;padding:8px 11px;display:none;align-items:center;justify-content:space-between;gap:8px}
+.filerow.on{display:flex}
+.filerow .x{cursor:pointer;color:var(--inkf);font-weight:700}
+.filerow .x:hover{color:var(--red)}
+.mapbox{margin-top:10px;background:var(--bg);border:1px solid var(--rule);border-radius:8px;padding:11px 13px;display:none}
+.mapttl{font-size:11.5px;font-weight:700;margin-bottom:9px}
+.mapttl .note{font-weight:400;color:var(--inkf)}
+.maprow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}
+.maprow:last-child{margin-bottom:0}
+.maprow label{font-size:12px;color:var(--inks);font-weight:600;white-space:nowrap}
+.maprow select{flex:1;max-width:230px;padding:6px 8px;border:1px solid var(--rule);border-radius:6px;font-size:12px;background:#fff}
+
+.status{margin-top:22px}
+.banner{border-radius:9px;padding:14px 18px;font-size:13px;display:none;gap:10px;align-items:flex-start}
+.banner.on{display:flex}
+.banner.err{background:var(--red-l);border:1px solid #f3b4ac;color:#7a241b}
+.banner.err b{display:block;font-size:13.5px;margin-bottom:2px}
+.banner .ic{font-size:18px;line-height:1}
+
+.confirm{display:none;background:var(--w);border:1px solid var(--rule);border-left:4px solid var(--green);border-radius:10px;padding:18px 20px;margin-top:18px;box-shadow:0 1px 3px rgba(15,25,35,.05)}
+.confirm.on{display:block}
+.confirm h3{font-size:13px;color:var(--green);display:flex;align-items:center;gap:7px;margin-bottom:12px}
+.grid3{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:16px}
+@media(max-width:700px){.grid3{grid-template-columns:1fr}}
+.field .l{font-size:10.5px;color:var(--inkf);letter-spacing:.04em;margin-bottom:3px}
+.field .v{font-size:14.5px;font-weight:700}
+.field .v.mono{font-family:'SFMono-Regular',Consolas,monospace;letter-spacing:.02em}
+
+.footrow{margin-top:20px;display:flex;justify-content:flex-end;gap:10px}
+.btn{padding:10px 20px;border-radius:7px;font-size:13.5px;font-weight:600;cursor:pointer;border:1px solid var(--rule);background:#fff;color:var(--inks);transition:filter .1s}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff}
+.btn.primary:disabled{opacity:.4;cursor:not-allowed}
+.btn.gold{background:var(--gold);border-color:var(--gold);color:#fff}
+.btn.sm{padding:7px 14px;font-size:12px}
+.btn:hover:not(:disabled){filter:brightness(0.96)}
+
+.hint{font-size:11.5px;color:var(--inkf);margin-top:16px;line-height:1.6;border-top:1px dashed var(--rule);padding-top:12px}
+
+.r2hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px}
+.eyebrow2{font-size:11px;letter-spacing:.07em;color:var(--inkf);font-weight:700}
+.r2hd h2{font-size:19px;margin-top:3px}
+.r2actions{display:flex;gap:10px}
+.sumcards{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:860px){.sumcards{grid-template-columns:repeat(2,1fr)}}
+.sc{border:1.5px solid var(--rule);border-radius:10px;padding:14px;text-align:center;background:#fff;box-shadow:0 1px 3px rgba(15,25,35,.05);cursor:pointer;font-family:inherit;transition:border-color .15s,transform .1s}
+.sc:hover{border-color:var(--inkf)}
+.sc.active{border-color:var(--navy);box-shadow:0 0 0 2px var(--navy) inset,0 2px 6px rgba(15,25,35,.1)}
+.sc .n{font-size:23px;font-weight:800}
+.sc .l{font-size:10px;color:var(--inkf);margin-top:3px;letter-spacing:.02em}
+.sc.ok .n{color:var(--green)}.sc.warn2 .n{color:#c2410c}.sc.err .n{color:var(--red)}.sc.rcm .n{color:var(--blue)}
+
+.tcrow{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
+.tcrow input{flex:1;min-width:220px;max-width:420px;padding:9px 12px;border:1.5px solid var(--rule);border-radius:8px;font-size:12.5px;outline:none;font-family:inherit}
+.tcrow input:focus{border-color:var(--navy);box-shadow:0 0 0 3px rgba(14,27,44,.08)}
+.tcrow .cnt2{font-size:11.5px;color:var(--inkf)}
+.tcrow .clearf{font-size:11.5px;color:var(--blue);cursor:pointer;font-weight:600;display:none}
+
+.tabpanel{background:#fff;border:1px solid var(--rule);border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(15,25,35,.05)}
+.panelhd{padding:10px 14px;border-bottom:1px solid var(--rule);background:var(--bg);display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.panelhd .note{font-size:11.5px;color:var(--inkf)}
+.tblwrap{overflow-x:auto;max-height:68vh;overflow-y:auto}
+.tbl{width:100%;border-collapse:collapse;font-size:12.5px}
+.tbl thead th{position:sticky;top:0;z-index:3;background:var(--navy);color:#fff;text-align:left;padding:10px 12px;font-size:10.5px;letter-spacing:.03em;white-space:nowrap;font-weight:700}
+.tbl td{padding:8px 12px;border-top:1px solid var(--rule)}
+.tbl td.r{text-align:right;font-variant-numeric:tabular-nums}
+.tbl td.mono{font-family:'SFMono-Regular',Consolas,monospace;font-size:11.5px}
+.tbl tbody tr:nth-child(even) td{background:#fafbfd}
+.tbl tbody tr:hover td{background:var(--blue-l)}
+.tbl tr.ok td{background:var(--green-l)!important}
+.tbl tr.warn td{background:var(--amber-l)!important}
+.tbl tr.bad td{background:var(--red-l)!important}
+.tbl tr.amd{box-shadow:inset 3px 0 0 var(--gold)}
+.tbl tr.tot td{background:var(--navy)!important;color:#fff;font-weight:700;position:sticky;bottom:0;z-index:2}
+.bdg{font-size:9px;background:var(--blue);color:#fff;padding:1px 6px;border-radius:10px;font-weight:700;margin-left:4px;white-space:nowrap}
+.bdg.amdb{background:var(--gold)}
+.bdg.bad2{background:var(--red)}
+.rmk{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;white-space:nowrap}
+.rmk.bad{background:var(--red);color:#fff}
+.rmk.amd2{background:var(--gold);color:#fff}
+.sub2{font-size:10.5px;color:var(--inkf)}
+.tbl td.nowrap{white-space:nowrap}
+.empty{padding:18px;font-size:12px;color:var(--inkf);text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <button class="hreset" onclick="resetAll()">↺ New Client</button>
+  <div class="wrap hcenter">
+    <div class="brandname">HK FINTAX SOLUTION</div>
+    <div class="brandtag">Smart Solutions For Tax &amp; Wealth Creation</div>
+    <div class="eyebrow2">PURCHASE RECONCILIATION · BOOKS VS GST PORTAL</div>
+  </div>
+</header>
+
+<main>
+<div class="maintabs">
+  <button class="mtab active" id="mtabUpload" onclick="showMainTab('upload')">📤 1. Upload Files</button>
+  <button class="mtab" id="mtabReport" onclick="showMainTab('report')" disabled>📊 2. Reconciliation Report</button>
+</div>
+
+<div class="wrap" id="view1">
+  <div class="cols">
+
+    <!-- BOOKS PANEL -->
+    <div class="panel">
+      <div class="panel-hd"><span class="tag books"></span><b>Purchase Report</b><span>— GSTR-3B Voucher Register, Tally</span></div>
+      <div class="panel-bd">
+        <div class="dz" id="dzBooks" onclick="document.getElementById('fiBooks').click()">
+          <div class="ic">📚</div>
+          <div class="t">Drop Tally GSTR-3B Voucher Register here</div>
+          <div class="s">.xlsx (preferred) or .csv</div>
+          <input type="file" id="fiBooks" accept=".xlsx,.xls,.csv">
+        </div>
+        <div class="filerow" id="frBooks"><span id="frBooksTxt"></span><span class="x" onclick="clearSide('books')">✕</span></div>
+        <div class="mapbox" id="booksMapBox">
+          <div class="mapttl">⚙️ Matching columns <span class="note">— auto-detected, change if your file differs</span></div>
+          <div class="maprow"><label>Date to match on</label><select id="mapDate"></select></div>
+          <div class="maprow"><label>Invoice No to match on</label><select id="mapInv"></select></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PORTAL PANEL -->
+    <div class="panel">
+      <div class="panel-hd"><span class="tag portal"></span><b>GST Portal</b><span>— GSTR-2A or GSTR-2B</span></div>
+      <div class="panel-bd">
+        <div class="dz" id="dzPortal" onclick="document.getElementById('fiPortal').click()">
+          <div class="ic">🏛️</div>
+          <div class="t">Drop GSTR-2A / 2B download here</div>
+          <div class="s">Excel, JSON, or the 2A ZIP — either 2A or 2B, auto-detected</div>
+          <input type="file" id="fiPortal" accept=".xlsx,.xls,.csv,.json,.zip">
+        </div>
+        <div class="filerow" id="frPortal"><span id="frPortalTxt"></span><span class="x" onclick="clearSide('portal')">✕</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status">
+    <div class="banner err" id="errBanner"><span class="ic">⚠️</span><div><b>GSTIN mismatch — this looks like two different parties</b><div id="errDetail"></div></div></div>
+
+    <div class="confirm" id="confirmBox">
+      <h3>✅ Party confirmed — both files match</h3>
+      <div class="grid3">
+        <div class="field"><div class="l">PARTY NAME</div><div class="v" id="cfName">—</div></div>
+        <div class="field"><div class="l">GSTIN</div><div class="v mono" id="cfGstin">—</div></div>
+        <div class="field"><div class="l">PERIOD</div><div class="v" id="cfPeriod">—</div></div>
+      </div>
+      <div id="cfAmendNote" style="display:none;margin-top:10px;font-size:12px;color:var(--amber)"></div>
+      <div id="cfFormatNote" style="display:none;margin-top:6px;font-size:12px;color:var(--inkf)"></div>
+    </div>
+
+    <div class="footrow">
+      <button class="btn" onclick="clearSide('both')">Reset</button>
+      <button class="btn primary" id="proceedBtn" disabled onclick="proceed()">Proceed to Reconciliation →</button>
+    </div>
+    <div class="hint">Nothing leaves your browser — both files are read and compared locally. The GST Portal file is read as GSTR-2A or GSTR-2B automatically (the two formats are structurally different — including 2A's extra rate-wise sub-total rows, which are detected and collapsed to one row per invoice). RCM supplies go to their own tab, amended entries are flagged, portal Credit Notes are sign-flipped to match your books' Debit Notes, and matching never uses the vendor name — only GSTIN, invoice number and amount.</div>
+  </div>
+</div>
+
+<div class="wrap" id="view2" style="display:none">
+  <div class="r2hd">
+    <div><div class="eyebrow2">RECONCILIATION RESULT</div><h2 id="r2Title">—</h2></div>
+    <div class="r2actions">
+      <button class="btn gold" onclick="exportExcel()">⬇ Export to Excel</button>
+    </div>
+  </div>
+  <div class="sumcards">
+    <button class="sc ok active" data-tab="matched" onclick="switchTab('matched')"><div class="n" id="sumMatched">0</div><div class="l">MATCHED</div></button>
+    <button class="sc warn2" data-tab="amt" onclick="switchTab('amt')"><div class="n" id="sumAmt">0</div><div class="l">AMOUNT MISMATCH</div></button>
+    <button class="sc err" data-tab="booksOnly" onclick="switchTab('booksOnly')"><div class="n" id="sumBooksOnly">0</div><div class="l">IN BOOKS, NOT PORTAL</div></button>
+    <button class="sc err" data-tab="portalOnly" onclick="switchTab('portalOnly')"><div class="n" id="sumPortalOnly">0</div><div class="l">ON PORTAL, NOT IN BOOKS</div></button>
+    <button class="sc rcm" data-tab="rcm" onclick="switchTab('rcm')"><div class="n" id="sumRcm">0</div><div class="l">RCM</div></button>
+  </div>
+
+  <div class="tcrow">
+    <input type="text" id="reportSearch" placeholder="🔍 Filter by vendor name, GSTIN or invoice no…" oninput="applyFilter()">
+    <span class="cnt2" id="filterCount"></span>
+    <span class="clearf" id="clearFilter" onclick="document.getElementById('reportSearch').value='';applyFilter()">✕ Clear</span>
+  </div>
+
+  <div class="tabpanel" id="panel-matched">
+    <div class="panelhd"><span class="note">Matched on GSTIN + amount (₹2 tolerance) — invoice number and date are not required to match. A ₹1–2 gap is noted as <b>Minor Amt Mismatch</b>, a differing date as <b>Date Mismatch</b>, in Remarks rather than separate columns. Rows marked <b>INV NO MISMATCH</b> in red have a genuinely different invoice number on the portal. Taxable/IGST/CGST/SGST reflect the portal's figures.</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Vendor</th><th>GSTIN</th><th>Books Inv No</th><th>Portal Inv No</th><th>Date</th><th>Vch Type</th><th>Taxable ₹</th><th>IGST</th><th>CGST</th><th>SGST</th><th>Total Inv Amt</th><th>Remarks</th></tr></thead><tbody id="tblMatched"></tbody></table></div>
+  </div>
+  <div class="tabpanel" id="panel-amt" style="display:none">
+    <div class="panelhd"><span class="note">Same GSTIN + invoice number on both sides, but the value differs beyond the ₹2 tolerance.</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Vendor</th><th>GSTIN</th><th>Books Inv No</th><th>Portal Inv No</th><th>Date</th><th>Vch Type</th><th>Books ₹ (Taxable)</th><th>Portal ₹ (Taxable)</th><th>IGST</th><th>CGST</th><th>SGST</th><th>Total Inv Amt</th><th>Diff</th><th>Remarks</th></tr></thead><tbody id="tblAmt"></tbody></table></div>
+  </div>
+  <div class="tabpanel" id="panel-booksOnly" style="display:none">
+    <div class="panelhd"><span class="note">In your Purchase Report but not yet on the portal — supplier likely hasn't filed. ITC at risk.</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Vendor</th><th>GSTIN</th><th>Invoice No</th><th>Date</th><th>Vch Type</th><th>Taxable ₹</th><th>IGST</th><th>CGST</th><th>SGST</th><th>Total Inv Amt</th><th>Remarks</th></tr></thead><tbody id="tblBooksOnly"></tbody></table></div>
+  </div>
+  <div class="tabpanel" id="panel-portalOnly" style="display:none">
+    <div class="panelhd"><span class="note">On the portal, not in your books.</span><button class="btn sm" id="copyBtn" onclick="copyPortalOnly()">📋 Copy for Tally entry</button></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Vendor</th><th>GSTIN</th><th>Invoice No</th><th>Date</th><th>Vch Type</th><th>Taxable ₹</th><th>IGST</th><th>CGST</th><th>SGST</th><th>Total Inv Amt</th><th>Remarks</th></tr></thead><tbody id="tblPortalOnly"></tbody></table></div>
+  </div>
+  <div class="tabpanel" id="panel-rcm" style="display:none">
+    <div class="panelhd"><span class="note">Reverse Charge supplies from the portal (Supply Attract Reverse Charge = Yes) — kept separate since these don't match against the Purchase Report the normal way.</span></div>
+    <div class="tblwrap"><table class="tbl"><thead><tr><th>Vendor</th><th>GSTIN</th><th>Invoice No</th><th>Date</th><th>Vch Type</th><th>Taxable ₹</th><th>IGST</th><th>CGST</th><th>SGST</th><th>Total Inv Amt</th><th>Remarks</th></tr></thead><tbody id="tblRcm"></tbody></table></div>
+  </div>
+</div>
+</main>
+
+<script>
+const S={books:{file:null,data:null},portal:{file:null,rows:null,taxpayerGstin:null,format:null}};
+
+function cell(v){return (v===null||v===undefined)?'':String(v).trim();}
+function normGstin(g){return String(g||'').toUpperCase().replace(/\s/g,'').trim();}
+
+function showMainTab(name){
+  document.getElementById('mtabUpload').classList.toggle('active',name==='upload');
+  document.getElementById('mtabReport').classList.toggle('active',name==='report');
+  document.getElementById('view1').style.display=name==='upload'?'block':'none';
+  document.getElementById('view2').style.display=name==='report'?'block':'none';
+}
+
+// ---- drag & drop + file input wiring ----
+function wireDZ(dzId,inputId,side){
+  const dz=document.getElementById(dzId),inp=document.getElementById(inputId);
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag')});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('drag'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag');if(e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0],side);});
+  inp.addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0],side);});
+}
+wireDZ('dzBooks','fiBooks','books');
+wireDZ('dzPortal','fiPortal','portal');
+document.getElementById('mapDate').addEventListener('change',remapBooks);
+document.getElementById('mapInv').addEventListener('change',remapBooks);
+
+function clearSide(side){
+  if(side==='both'){clearSide('books');clearSide('portal');return;}
+  S[side]=side==='books'?{file:null,data:null}:{file:null,rows:null,taxpayerGstin:null,format:null};
+  document.getElementById(side==='books'?'dzBooks':'dzPortal').classList.remove('ok','err');
+  document.getElementById(side==='books'?'frBooks':'frPortal').classList.remove('on');
+  document.getElementById(side==='books'?'fiBooks':'fiPortal').value='';
+  if(side==='books')document.getElementById('booksMapBox').style.display='none';
+  hideBanners();
+}
+function hideBanners(){
+  document.getElementById('errBanner').classList.remove('on');
+  document.getElementById('confirmBox').classList.remove('on');
+  document.getElementById('proceedBtn').disabled=true;
+}
+function resetAll(){
+  clearSide('both');
+  document.getElementById('mtabReport').disabled=true;
+  showMainTab('upload');
+}
+
+// ---- read any xlsx/csv into a raw 2D grid, no header assumptions ----
+function gridFromFile(file,cb){
+  const name=file.name.toLowerCase();
+  if(name.endsWith('.csv')){
+    Papa.parse(file,{header:false,skipEmptyLines:false,complete:r=>cb(null,r.data),error:()=>cb('Could not read CSV')});
+  }else{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      try{
+        const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        cb(null,XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true}));
+      }catch(err){cb('Could not read Excel file');}
+    };
+    reader.onerror=()=>cb('Could not read file');
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+// ---- GSTR-3B Voucher Register (Tally) — header-label-driven parser ----
+const MONTHS={jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function parseBooksDate(v){
+  if(v instanceof Date && !isNaN(v))return v;
+  const m=String(v||'').trim().match(/^(\d{1,2})[-\s]([A-Za-z]{3})[-\s](\d{2,4})$/);
+  if(m){const mo=MONTHS[m[2].toLowerCase().slice(0,3)];const y=m[3].length===2?2000+(+m[3]):+m[3];if(mo!=null)return new Date(y,mo,+m[1]);}
+  return null;
+}
+const GRX=/\b(\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z])\b/;
+
+function colLabel(grid,i,rowIdx){
+  const a=cell((grid[rowIdx]||[])[i]), b=cell((grid[rowIdx+1]||[])[i]);
+  return (a&&b)?(a+' '+b):(a||b);
+}
+function findColByLabel(cols,patterns){
+  for(const p of patterns){
+    const hit=cols.find(c=>c.label.toLowerCase().includes(p));
+    if(hit)return hit.idx;
+  }
+  return -1;
+}
+
+function parseBooksGrid(grid){
+  let companyName='';
+  for(const r of grid){ if(cell(r[0])){companyName=cell(r[0]);break;} }
+
+  let gstin='',periodText='',headerRowIdx=-1;
+  for(let i=0;i<Math.min(grid.length,15);i++){
+    const row=grid[i]||[];
+    if(!gstin){const m=(cell(row[0])+' '+cell(row[1])).match(GRX);if(m)gstin=m[1];}
+    if(!periodText && /voucher register/i.test(cell(row[0]))){
+      for(let j=i+1;j<i+3 && j<grid.length;j++){
+        const t=cell(grid[j][0]);
+        if(t && /\bto\b/i.test(t)){periodText=t;break;}
+      }
+    }
+    if(cell(row[0]).toLowerCase()==='date'){headerRowIdx=i;break;}
+  }
+  if(headerRowIdx<0)return{error:'Could not locate the "Date" column header — this file may not be a GSTR-3B Voucher Register export from Tally.'};
+  if(!gstin)return{error:'Could not find the GSTIN in the Purchase Report header block.'};
+
+  const maxCols=Math.max((grid[headerRowIdx]||[]).length,(grid[headerRowIdx+1]||[]).length);
+  const headerCols=[];
+  for(let i=0;i<maxCols;i++){const label=colLabel(grid,i,headerRowIdx);if(label)headerCols.push({idx:i,label});}
+
+  const gstinIdx=findColByLabel(headerCols,['gstin']);
+  const particularsIdx=findColByLabel(headerCols,['particulars']);
+  const vchTypeIdx=findColByLabel(headerCols,['vch type']);
+  const vchNoIdx=findColByLabel(headerCols,['vch no']);
+  const docNoIdx=findColByLabel(headerCols,['doc no']);
+  const plainDateIdx=(headerCols.find(c=>c.label.toLowerCase().trim()==='date')||{idx:-1}).idx;
+  const docDateIdx=findColByLabel(headerCols,['doc date']);
+  const taxableIdx=findColByLabel(headerCols,['taxable']);
+  const igstIdx=findColByLabel(headerCols,['igst']);
+  const cgstIdx=findColByLabel(headerCols,['cgst']);
+  const sgstIdx=findColByLabel(headerCols,['sgst','utgst']);
+  const cessIdx=findColByLabel(headerCols,['cess']);
+
+  if(gstinIdx<0||taxableIdx<0)return{error:'Could not identify the GSTIN or Taxable Amount columns — the file layout may have changed.'};
+
+  const defaultDateIdx=plainDateIdx>=0?plainDateIdx:docDateIdx;
+  const defaultInvIdx=vchNoIdx>=0?vchNoIdx:docNoIdx;
+  if(defaultDateIdx<0||defaultInvIdx<0)return{error:'Could not identify a date or invoice-number column to match on.'};
+
+  let periodLabel='—';
+  if(periodText)periodLabel=periodText.replace(/\s+to\s+/i,' – ');
+
+  return{error:null,meta:{companyName,gstin,periodLabel},grid,headerCols,
+    dataStartIdx:headerRowIdx+2,
+    fixedCols:{gstin:gstinIdx,particulars:particularsIdx,vchType:vchTypeIdx,taxable:taxableIdx,igst:igstIdx,cgst:cgstIdx,sgst:sgstIdx,cess:cessIdx},
+    defaultDateIdx,defaultInvIdx};
+}
+
+function buildInvoices(grid,dataStartIdx,fixedCols,dateIdx,invIdx){
+  const invoices=[];let pc=0,dc=0,oc=0;
+  for(let i=dataStartIdx;i<grid.length;i++){
+    const r=grid[i]||[];
+    const anchor=r[0],particulars=cell(r[fixedCols.particulars]);
+    if(!anchor && /^total$/i.test(particulars))break;
+    if(!anchor)continue;
+    const vchType=cell(r[fixedCols.vchType])||'Purchase';
+    if(/debit/i.test(vchType))dc++;else if(/purchase/i.test(vchType))pc++;else oc++;
+    invoices.push({date:parseBooksDate(r[dateIdx]),dateRaw:r[dateIdx],vendorName:particulars,
+      vendorGstin:cell(r[fixedCols.gstin]).toUpperCase().replace(/\s/g,''),vchType,invoiceNo:cell(r[invIdx]),
+      taxable:+r[fixedCols.taxable]||0,igst:+r[fixedCols.igst]||0,cgst:+r[fixedCols.cgst]||0,sgst:+r[fixedCols.sgst]||0,cess:+r[fixedCols.cess]||0});
+  }
+  const ds=invoices.map(r=>r.date).filter(Boolean);
+  let fallbackPeriod=null;
+  if(ds.length){const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];const mn=new Date(Math.min(...ds)),mx=new Date(Math.max(...ds));const a=`${MS[mn.getMonth()]} ${mn.getFullYear()}`,b=`${MS[mx.getMonth()]} ${mx.getFullYear()}`;fallbackPeriod=a===b?a:`${a} – ${b}`;}
+  return{invoices,counts:{purchase:pc,debitNote:dc,other:oc},fallbackPeriod};
+}
+
+function populateMapBox(headerCols,dIdx,iIdx){
+  const opts=headerCols.map(c=>`<option value="${c.idx}">${String.fromCharCode(65+c.idx)}: ${c.label}</option>`).join('');
+  const dsel=document.getElementById('mapDate'),isel=document.getElementById('mapInv');
+  dsel.innerHTML=opts;isel.innerHTML=opts;
+  dsel.value=dIdx;isel.value=iIdx;
+  document.getElementById('booksMapBox').style.display='block';
+}
+function remapBooks(){
+  if(!S.books.grid)return;
+  const dIdx=+document.getElementById('mapDate').value,iIdx=+document.getElementById('mapInv').value;
+  const built=buildInvoices(S.books.grid,S.books.dataStartIdx,S.books.fixedCols,dIdx,iIdx);
+  S.books.dateIdx=dIdx;S.books.invIdx=iIdx;
+  S.books.data.invoices=built.invoices;S.books.data.counts=built.counts;
+  if(built.fallbackPeriod && S.books.data.meta.periodLabel==='—')S.books.data.meta.periodLabel=built.fallbackPeriod;
+  document.getElementById('frBooksTxt').textContent=`📄 ${S.books.file.name} — ${built.invoices.length} entries (${built.counts.purchase} Purchase${built.counts.debitNote?', '+built.counts.debitNote+' Debit Note':''})`;
+  tryReconcilePreCheck();
+}
+
+// ---- GSTR-2A / GSTR-2B Portal file — formats are structurally different, auto-detected ----
+const PORTAL_SHEETS_2B=[
+  {name:'B2B',hdr:6,sign:1,amended:false,c:{gstin:0,name:1,doc:2,typ:3,date:4,taxable:8,igst:9,cgst:10,sgst:11,cess:12,itc:15,reason:16,rcm:7}},
+  {name:'B2B-CDNR',hdr:6,sign:null,amended:false,c:{gstin:0,name:1,doc:2,typ:3,date:5,taxable:9,igst:10,cgst:11,sgst:12,cess:13,itc:22,reason:23,rcm:8}},
+  {name:'B2B-DNR',hdr:6,sign:1,amended:false,c:{gstin:0,name:1,doc:2,typ:3,date:5,taxable:9,igst:10,cgst:11,sgst:12,cess:13,itc:16,reason:17,rcm:8}},
+  {name:'B2BA',hdr:7,sign:1,amended:true,c:{gstin:2,name:3,doc:4,typ:5,date:6,taxable:10,igst:11,cgst:12,sgst:13,cess:14,itc:23,reason:24,rcm:9}},
+  {name:'B2B-CDNRA',hdr:7,sign:null,amended:true,c:{gstin:3,name:4,doc:5,typ:6,date:8,taxable:12,igst:13,cgst:14,sgst:15,cess:16,itc:25,reason:26,rcm:11}},
+];
+const PORTAL_SHEETS_2A=[
+  {name:'B2B',hdr:6,rateIdx:8,sign:1,amended:false,c:{gstin:0,name:1,doc:2,typ:3,date:4,taxable:9,igst:10,cgst:11,sgst:12,cess:13,rcm:7}},
+  {name:'CDNR',hdr:6,rateIdx:9,sign:null,amended:false,c:{gstin:0,name:1,doc:3,typ:2,date:5,taxable:10,igst:11,cgst:12,sgst:13,cess:14,rcm:8}},
+  {name:'B2BA',hdr:7,rateIdx:10,sign:1,amended:true,c:{gstin:2,name:3,doc:5,typ:4,date:6,taxable:11,igst:12,cgst:13,sgst:14,cess:15,rcm:9}},
+  {name:'CDNRA',hdr:7,rateIdx:12,sign:null,amended:true,c:{gstin:3,name:4,doc:6,typ:5,date:8,taxable:13,igst:14,cgst:15,sgst:16,cess:17,rcm:11}},
+];
+function detectPortalFormat(wb){
+  const n=wb.SheetNames;
+  if(n.includes('B2B-CDNR'))return'2B';
+  if(n.includes('CDNR'))return'2A';
+  return null;
+}
+function prettyPeriod(taxPeriod,finYear){
+  const m=String(taxPeriod||'').match(/^(\d{2})(\d{4})$/);
+  const MS=['','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  if(m)return `${MS[+m[1]]} ${m[2]}`;
+  return (String(taxPeriod||'')+(finYear?' '+finYear:'')).trim()||'—';
+}
+function readMetaFromReadme(wb){
+  const rm=wb.Sheets['Read me'];if(!rm)return null;
+  const g=XLSX.utils.sheet_to_json(rm,{header:1,defval:'',raw:true});
+  const want={gstin:'gstin',legalName:'legal name',tradeName:'trade name',taxPeriod:'tax period',finYear:'financial year'};
+  const out={};
+  for(const row of g){
+    const ne=(row||[]).map((v,i)=>({i,v:cell(v)})).filter(x=>x.v!=='');
+    for(let j=0;j<ne.length-1;j++){
+      const label=ne[j].v.toLowerCase();
+      for(const key in want){ if(!out[key] && label.includes(want[key])) out[key]=ne[j+1].v; }
+    }
+  }
+  return{gstin:out.gstin||'',legalName:out.legalName||'',tradeName:out.tradeName||'',companyName:out.tradeName||out.legalName||'',periodLabel:prettyPeriod(out.taxPeriod,out.finYear)};
+}
+function parsePortalExcelSheets(wb){
+  const fmt=detectPortalFormat(wb);
+  const SHEETS=fmt==='2A'?PORTAL_SHEETS_2A:PORTAL_SHEETS_2B;
+  const meta=readMetaFromReadme(wb);
+  const rows=[];
+  for(const sc of SHEETS){
+    const ws=wb.Sheets[sc.name];if(!ws)continue;
+    const g=XLSX.utils.sheet_to_json(ws,{header:1,defval:'',raw:true});
+    let dataRows=g.slice(sc.hdr);
+    if(sc.rateIdx!=null){
+      // 2A lists a rate-wise detail row per GST rate PLUS one "-Total" aggregate row per invoice — keep only the aggregate row
+      const dashOnly=dataRows.filter(r=>cell(r[sc.rateIdx])==='-');
+      if(dashOnly.length)dataRows=dashOnly;
+    }
+    for(const r of dataRows){
+      const c=sc.c,gstin=cell(r[c.gstin]).toUpperCase().replace(/\s/g,'');
+      if(!gstin)continue;
+      const typRaw=cell(r[c.typ]);
+      const sign=sc.sign===null?(/credit/i.test(typRaw)?-1:1):sc.sign;
+      // 2A's aggregate "-Total" row also appends "-Total" to the invoice/note number text itself — strip it so matching isn't broken
+      const rawDoc=cell(r[c.doc]);
+      const docNo=sc.rateIdx!=null?rawDoc.replace(/-Total$/i,''):rawDoc;
+      rows.push({sheet:sc.name,amended:sc.amended,rcm:/^y/i.test(cell(r[c.rcm])),supplierGstin:gstin,supplierName:cell(r[c.name]),docNo,docType:typRaw,docDate:r[c.date],
+        taxable:(+r[c.taxable]||0)*sign,igst:(+r[c.igst]||0)*sign,cgst:(+r[c.cgst]||0)*sign,sgst:(+r[c.sgst]||0)*sign,cess:(+r[c.cess]||0)*sign,
+        itcAvailable:c.itc!=null?cell(r[c.itc]):'',reason:c.reason!=null?cell(r[c.reason]):''});
+    }
+  }
+  return{meta,format:fmt,rows};
+}
+function parsePortalJSON(obj){
+  const d=obj.data||obj,dd=d.docdata||{};
+  const periodLabel=prettyPeriod(cell(d.rtnprd),'');
+  const rows=[];
+  const pushInv=(arr,tag,amended)=>{(arr||[]).forEach(s=>(s.inv||[]).forEach(iv=>rows.push({sheet:tag,amended,rcm:iv.rev==='Y',supplierGstin:cell(s.ctin).toUpperCase(),supplierName:s.trdnm||'',docNo:iv.inum,docType:iv.typ,docDate:iv.dt,taxable:+iv.txval||0,igst:+iv.igst||0,cgst:+iv.cgst||0,sgst:+iv.sgst||0,cess:+iv.cess||0,itcAvailable:iv.itcavl,reason:iv.rsn||''})));};
+  const pushNote=(arr,tag,amended)=>{(arr||[]).forEach(s=>(s.nt||[]).forEach(nt=>{const sign=/^c/i.test(nt.typ)?-1:1;rows.push({sheet:tag,amended,rcm:nt.rev==='Y',supplierGstin:cell(s.ctin).toUpperCase(),supplierName:s.trdnm||'',docNo:nt.ntnum,docType:nt.typ==='C'?'Credit Note':'Debit Note',docDate:nt.dt,taxable:(+nt.txval||0)*sign,igst:(+nt.igst||0)*sign,cgst:(+nt.cgst||0)*sign,sgst:(+nt.sgst||0)*sign,cess:(+nt.cess||0)*sign,itcAvailable:nt.itcavl,reason:nt.rsn||''});}));};
+  pushInv(dd.b2b,'B2B',false);pushInv(dd.b2ba,'B2BA',true);
+  pushNote(dd.cdnr,'CDNR',false);pushNote(dd.cdnra,'CDNRA',true);pushNote(dd.dnr,'DNR',false);
+  return{meta:{gstin:cell(d.gstin).toUpperCase(),legalName:'',tradeName:'',companyName:'',periodLabel},format:'json',rows};
+}
+function handlePortalZip(file,cb){
+  if(typeof JSZip==='undefined')return cb('ZIP support failed to load — try uploading the Excel or JSON file directly.');
+  JSZip.loadAsync(file).then(zip=>{
+    const names=Object.keys(zip.files);
+    const xn=names.find(n=>/\.xlsx$/i.test(n)),jn=names.find(n=>/\.json$/i.test(n));
+    if(xn)zip.files[xn].async('arraybuffer').then(buf=>{try{cb(null,{kind:'xlsx',wb:XLSX.read(new Uint8Array(buf),{type:'array',cellDates:true})});}catch(e){cb('Could not read the Excel file inside the ZIP');}});
+    else if(jn)zip.files[jn].async('string').then(txt=>{try{cb(null,{kind:'json',obj:JSON.parse(txt)});}catch(e){cb('Could not read the JSON file inside the ZIP');}});
+    else cb('ZIP did not contain an Excel or JSON file');
+  }).catch(()=>cb('Could not open the ZIP file'));
+}
+
+function handleFile(file,side){
+  const dz=document.getElementById(side==='books'?'dzBooks':'dzPortal');
+  const fr=document.getElementById(side==='books'?'frBooks':'frPortal');
+  const frt=document.getElementById(side==='books'?'frBooksTxt':'frPortalTxt');
+  dz.classList.remove('ok','err');
+  const name=file.name.toLowerCase();
+
+  if(side==='books'){
+    gridFromFile(file,(err,grid)=>{
+      if(err){dz.classList.add('err');fr.classList.add('on');frt.textContent='⚠️ '+err;return;}
+      const res=parseBooksGrid(grid);
+      if(res.error){S.books={file:null,data:null};dz.classList.add('err');fr.classList.add('on');frt.textContent='⚠️ '+res.error;hideBanners();document.getElementById('booksMapBox').style.display='none';return;}
+      const built=buildInvoices(res.grid,res.dataStartIdx,res.fixedCols,res.defaultDateIdx,res.defaultInvIdx);
+      if(!built.invoices.length){dz.classList.add('err');fr.classList.add('on');frt.textContent='⚠️ No purchase rows found below the header row.';hideBanners();return;}
+      if(res.meta.periodLabel==='—'&&built.fallbackPeriod)res.meta.periodLabel=built.fallbackPeriod;
+      S.books={file,data:{meta:res.meta,invoices:built.invoices,counts:built.counts},grid:res.grid,dataStartIdx:res.dataStartIdx,fixedCols:res.fixedCols,dateIdx:res.defaultDateIdx,invIdx:res.defaultInvIdx};
+      dz.classList.add('ok');fr.classList.add('on');
+      frt.textContent=`📄 ${file.name} — ${built.invoices.length} entries (${built.counts.purchase} Purchase${built.counts.debitNote?', '+built.counts.debitNote+' Debit Note':''})`;
+      populateMapBox(res.headerCols,res.defaultDateIdx,res.defaultInvIdx);
+      tryReconcilePreCheck();
+    });
+    return;
+  }
+
+  const onPortal=(err,parsed)=>{
+    if(err){S.portal={file:null,rows:null,taxpayerGstin:null,format:null};dz.classList.add('err');fr.classList.add('on');frt.textContent='⚠️ '+err;hideBanners();return;}
+    let g=parsed.meta&&parsed.meta.gstin;
+    let src='file';
+    if(!g){const m=file.name.match(GRX);if(m){g=m[1];src='filename';}}
+    const amCount=parsed.rows.filter(r=>r.amended).length;
+    S.portal={file,meta:parsed.meta,rows:parsed.rows,format:parsed.format,taxpayerGstin:g?{gstin:g,source:src}:null};
+    dz.classList.add('ok');fr.classList.add('on');
+    const fmtLabel=parsed.format==='2A'?'GSTR-2A':parsed.format==='2B'?'GSTR-2B':'';
+    frt.textContent=`📄 ${file.name} — ${fmtLabel?fmtLabel+', ':''}${parsed.rows.length} entries${amCount?` (⚡ ${amCount} amended)`:''}`;
+    tryReconcilePreCheck();
+  };
+
+  if(name.endsWith('.json')){
+    const reader=new FileReader();
+    reader.onload=e=>{try{onPortal(null,parsePortalJSON(JSON.parse(e.target.result)));}catch(err){onPortal('Could not read JSON file');}};
+    reader.onerror=()=>onPortal('Could not read file');
+    reader.readAsText(file);
+  }else if(name.endsWith('.zip')){
+    handlePortalZip(file,(err,res)=>{if(err)return onPortal(err);onPortal(null,res.kind==='xlsx'?parsePortalExcelSheets(res.wb):parsePortalJSON(res.obj));});
+  }else{
+    const reader=new FileReader();
+    reader.onload=e=>{try{onPortal(null,parsePortalExcelSheets(XLSX.read(new Uint8Array(e.target.result),{type:'array',cellDates:true})));}catch(err){onPortal('Could not read Excel file');}};
+    reader.onerror=()=>onPortal('Could not read file');
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function tryReconcilePreCheck(){
+  hideBanners();
+  if(!S.books.data || !S.portal.rows)return;
+
+  const errBanner=document.getElementById('errBanner'),errDetail=document.getElementById('errDetail');
+  const bGstin=normGstin(S.books.data.meta.gstin);
+
+  if(!S.portal.taxpayerGstin){
+    errDetail.textContent='Could not confidently identify the GSTIN in the GST Portal file (checked file name and header rows).';
+    errBanner.classList.add('on');return;
+  }
+  const pGstin=normGstin(S.portal.taxpayerGstin.gstin);
+  if(bGstin!==pGstin){
+    errDetail.textContent=`Purchase Report GSTIN: ${bGstin}  ≠  Portal file GSTIN: ${pGstin}. These files belong to different parties — re-upload the correct file before proceeding.`;
+    errBanner.classList.add('on');return;
+  }
+
+  document.getElementById('cfName').textContent=S.books.data.meta.companyName;
+  document.getElementById('cfGstin').textContent=bGstin;
+  document.getElementById('cfPeriod').textContent=S.books.data.meta.periodLabel;
+  const amCount=(S.portal.rows||[]).filter(r=>r.amended).length;
+  const noteEl=document.getElementById('cfAmendNote');
+  if(amCount){noteEl.style.display='block';noteEl.textContent=`⚡ ${amCount} amended entr${amCount===1?'y':'ies'} found in the portal file — flagged for review in the reconciliation report.`;}
+  else noteEl.style.display='none';
+  const fmtEl=document.getElementById('cfFormatNote');
+  if(S.portal.format==='2A'||S.portal.format==='2B'){fmtEl.style.display='block';fmtEl.textContent=`Portal file read as ${S.portal.format==='2A'?'GSTR-2A':'GSTR-2B'}.`;}
+  else fmtEl.style.display='none';
+  document.getElementById('confirmBox').classList.add('on');
+  document.getElementById('proceedBtn').disabled=false;
+}
+
+// ---- matching engine — GSTIN + Invoice No + Amount; name is never used ----
+function normInv(s){return String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,'').replace(/^0+/,'');}
+function pDate(s){
+  if(s instanceof Date && !isNaN(s))return s;
+  const t=String(s||'').trim();
+  const m=t.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if(m){const y=m[3].length===2?2000+(+m[3]):+m[3];return new Date(y,+m[2]-1,+m[1]);}
+  return null;
+}
+function dKey(d){return d?`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`:'??';}
+function near(a,b){return Math.abs((a||0)-(b||0))<=2;}
+function fmtMoney(n){n=n||0;return (n<0?'-₹':'₹')+Math.abs(n).toLocaleString('en-IN',{maximumFractionDigits:0});}
+function fmt2(n){return (Math.round((n||0)*100)/100).toFixed(2);}
+function fmtDate(d){if(!d)return'—';const MS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return `${d.getDate()}-${MS[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;}
+function fmtDMY(d){if(!d)return'—';const dd=String(d.getDate()).padStart(2,'0'),mm=String(d.getMonth()+1).padStart(2,'0');return `${dd}-${mm}-${d.getFullYear()}`;}
+function vchLabelBooks(r){return /debit/i.test(r.vchType||'')?'Debit Note':'Invoice';}
+function vchLabelPortal(r){const t=r.docType||'';if(/credit/i.test(t))return'Credit Note';if(/debit/i.test(t))return'Debit Note';return'Invoice';}
+function sumField(arr,f){return arr.reduce((s,r)=>s+(r[f]||0),0);}
+function totalInvAmt(r){return (r.taxable||0)+(r.igst||0)+(r.cgst||0)+(r.sgst||0)+(r.cess||0);}
+
+function runReconciliation(){
+  const books=S.books.data.invoices.map((r,i)=>({...r,_id:'B'+i}));
+  const portalAll=S.portal.rows.map((r,i)=>({...r,_id:'P'+i,_date:pDate(r.docDate)}));
+  const rcm=portalAll.filter(r=>r.rcm);
+  const portal=portalAll.filter(r=>!r.rcm);
+
+  const used=new Set(),byGstin={};
+  portal.forEach(r=>{(byGstin[r.supplierGstin]=byGstin[r.supplierGstin]||[]).push(r);});
+
+  const matched=[],amtMismatch=[];
+  // Pass A — exact invoice number match on both sides, but amount differs beyond tolerance => Amount Mismatch
+  books.forEach(b=>{
+    const cands=(byGstin[b.vendorGstin]||[]).filter(p=>!used.has(p._id));
+    const hit=cands.find(p=>normInv(p.docNo)===normInv(b.invoiceNo) && !near(p.taxable,b.taxable));
+    if(hit){used.add(hit._id);amtMismatch.push({books:b,portal:hit});b._matched=true;}
+  });
+  // Pass B — GSTIN + amount within tolerance is enough to call it a match; invoice-number text differences
+  // (formatting, a typo'd digit, OCR-style slips) never block the match — they're flagged red instead.
+  books.forEach(b=>{
+    if(b._matched)return;
+    const cands=(byGstin[b.vendorGstin]||[]).filter(p=>!used.has(p._id) && near(p.taxable,b.taxable));
+    if(!cands.length)return;
+    let hit=cands.find(p=>normInv(p.docNo)===normInv(b.invoiceNo));
+    if(!hit){
+      const bKey=dKey(b.date);
+      hit=cands.find(p=>dKey(p._date)===bKey)||cands[0];
+    }
+    used.add(hit._id);
+    matched.push({books:b,portal:hit,invMismatch:normInv(hit.docNo)!==normInv(b.invoiceNo)});
+    b._matched=true;
+  });
+
+  return{matched,amtMismatch,booksOnly:books.filter(b=>!b._matched),portalOnly:portal.filter(p=>!used.has(p._id)),rcm};
+}
+
+function emptyRow(n){return `<tr><td colspan="${n}" class="empty">No records</td></tr>`;}
+function totRowCustom(labelSpan,label,numVals,trailingEmpty){
+  let h=`<tr class="tot"><td colspan="${labelSpan}">${label}</td>`;
+  h+=numVals.map(v=>`<td class="r">${fmtMoney(v)}</td>`).join('');
+  h+='<td></td>'.repeat(trailingEmpty||0);
+  return h+'</tr>';
+}
+
+// ---- filtering ----
+function matchesFilter(obj,isPair,q){
+  if(!q)return true;
+  const vals=isPair
+    ?[obj.books.vendorName,obj.portal.supplierName,obj.books.vendorGstin,obj.books.invoiceNo,obj.portal.docNo]
+    :[obj.vendorName,obj.supplierName,obj.vendorGstin,obj.supplierGstin,obj.invoiceNo,obj.docNo];
+  return vals.some(v=>String(v||'').toLowerCase().includes(q));
+}
+function applyFilter(){ renderResults(); }
+
+function renderResults(res){
+  if(res)window._recon=res;
+  res=window._recon;
+  if(!res)return;
+
+  const q=(document.getElementById('reportSearch').value||'').trim().toLowerCase();
+  document.getElementById('clearFilter').style.display=q?'inline':'none';
+
+  const matched=res.matched.filter(x=>matchesFilter(x,true,q));
+  const amtMismatch=res.amtMismatch.filter(x=>matchesFilter(x,true,q));
+  const booksOnly=res.booksOnly.filter(x=>matchesFilter(x,false,q));
+  const portalOnly=res.portalOnly.filter(x=>matchesFilter(x,false,q));
+  const rcm=res.rcm.filter(x=>matchesFilter(x,false,q));
+
+  const setN=(id,n)=>document.getElementById(id).textContent=n;
+  setN('sumMatched',res.matched.length);
+  setN('sumAmt',res.amtMismatch.length);
+  setN('sumBooksOnly',res.booksOnly.length);
+  setN('sumPortalOnly',res.portalOnly.length);
+  setN('sumRcm',res.rcm.length);
+  const totalAll=res.matched.length+res.amtMismatch.length+res.booksOnly.length+res.portalOnly.length+res.rcm.length;
+  const shownAll=matched.length+amtMismatch.length+booksOnly.length+portalOnly.length+rcm.length;
+  document.getElementById('filterCount').textContent=q?`Showing ${shownAll} of ${totalAll} rows`:'';
+
+  const matchedHTML=arr=>{
+    if(!arr.length)return emptyRow(12);
+    let h=arr.map(({books:b,portal:p,invMismatch})=>{
+      const diff=(b.taxable||0)-(p.taxable||0);
+      const rowCls=invMismatch?'bad':'ok';
+      const remarks=[];
+      if(invMismatch)remarks.push('Inv No Mismatch');
+      if(diff!==0)remarks.push(`Minor Amt Mismatch ₹${fmt2(Math.abs(diff))}`);
+      if(dKey(b.date)!==dKey(p._date))remarks.push(`Date Mismatch — Book Date: ${fmtDMY(b.date)} | Portal Date: ${fmtDMY(p._date)}`);
+      if(p.amended)remarks.push('Amended');
+      const rmkCls=invMismatch?'bad':'amd2';
+      return `<tr class="${rowCls}${p.amended?' amd':''}">`+
+        `<td class="nowrap">${b.vendorName||p.supplierName||''}</td>`+
+        `<td class="mono">${b.vendorGstin||''}</td>`+
+        `<td>${b.invoiceNo||''}</td>`+
+        `<td>${p.docNo||''}</td>`+
+        `<td class="nowrap">${fmtDate(b.date)}</td>`+
+        `<td>${vchLabelPortal(p)}</td>`+
+        `<td class="r">${fmtMoney(p.taxable)}</td>`+
+        `<td class="r">${fmtMoney(p.igst)}</td>`+
+        `<td class="r">${fmtMoney(p.cgst)}</td>`+
+        `<td class="r">${fmtMoney(p.sgst)}</td>`+
+        `<td class="r">${fmtMoney(totalInvAmt(p))}</td>`+
+        `<td>${remarks.length?`<span class="rmk ${rmkCls}">${remarks.join('; ')}</span>`:''}</td></tr>`;
+    }).join('');
+    const taxSum=sumField(arr.map(x=>x.portal),'taxable');
+    const igstSum=sumField(arr.map(x=>x.portal),'igst'),cgstSum=sumField(arr.map(x=>x.portal),'cgst'),sgstSum=sumField(arr.map(x=>x.portal),'sgst');
+    const totSum=arr.reduce((s,x)=>s+totalInvAmt(x.portal),0);
+    h+=totRowCustom(6,`Total (${arr.length})`,[taxSum,igstSum,cgstSum,sgstSum,totSum],1);
+    return h;
+  };
+  const amtMismatchHTML=arr=>{
+    if(!arr.length)return emptyRow(14);
+    let h=arr.map(({books:b,portal:p})=>{
+      const diff=(b.taxable||0)-(p.taxable||0);
+      const remarks=[];
+      if(dKey(b.date)!==dKey(p._date))remarks.push(`Date Mismatch — Book Date: ${fmtDMY(b.date)} | Portal Date: ${fmtDMY(p._date)}`);
+      if(p.amended)remarks.push('Amended');
+      return `<tr class="warn${p.amended?' amd':''}">`+
+        `<td class="nowrap">${b.vendorName||p.supplierName||''}</td>`+
+        `<td class="mono">${b.vendorGstin||''}</td>`+
+        `<td>${b.invoiceNo||''}</td>`+
+        `<td>${p.docNo||''}</td>`+
+        `<td class="nowrap">${fmtDate(b.date)}</td>`+
+        `<td>${vchLabelPortal(p)}</td>`+
+        `<td class="r">${fmtMoney(b.taxable)}</td>`+
+        `<td class="r">${fmtMoney(p.taxable)}</td>`+
+        `<td class="r">${fmtMoney(p.igst)}</td>`+
+        `<td class="r">${fmtMoney(p.cgst)}</td>`+
+        `<td class="r">${fmtMoney(p.sgst)}</td>`+
+        `<td class="r">${fmtMoney(totalInvAmt(p))}</td>`+
+        `<td class="r">${fmtMoney(diff)}</td>`+
+        `<td>${remarks.length?`<span class="rmk amd2">${remarks.join('; ')}</span>`:''}</td></tr>`;
+    }).join('');
+    const bSum=sumField(arr.map(x=>x.books),'taxable'),pSum=sumField(arr.map(x=>x.portal),'taxable');
+    const igstSum=sumField(arr.map(x=>x.portal),'igst'),cgstSum=sumField(arr.map(x=>x.portal),'cgst'),sgstSum=sumField(arr.map(x=>x.portal),'sgst');
+    const totSum=arr.reduce((s,x)=>s+totalInvAmt(x.portal),0);
+    h+=totRowCustom(6,`Total (${arr.length})`,[bSum,pSum,igstSum,cgstSum,sgstSum,totSum,bSum-pSum],1);
+    return h;
+  };
+  const soloHTML=(arr,side)=>{
+    if(!arr.length)return emptyRow(11);
+    let h=arr.map(r=>{
+      const vch=side==='books'?vchLabelBooks(r):vchLabelPortal(r);
+      const remarks=r.amended?'Amended':'';
+      return `<tr>`+
+        `<td class="nowrap">${side==='books'?(r.vendorName||''):(r.supplierName||'')}</td>`+
+        `<td class="mono">${side==='books'?(r.vendorGstin||''):(r.supplierGstin||'')}</td>`+
+        `<td>${side==='books'?(r.invoiceNo||''):(r.docNo||'')}</td>`+
+        `<td class="nowrap">${fmtDate(side==='books'?r.date:r._date)}</td>`+
+        `<td>${vch}</td>`+
+        `<td class="r">${fmtMoney(r.taxable)}</td>`+
+        `<td class="r">${fmtMoney(r.igst)}</td>`+
+        `<td class="r">${fmtMoney(r.cgst)}</td>`+
+        `<td class="r">${fmtMoney(r.sgst)}</td>`+
+        `<td class="r">${fmtMoney(totalInvAmt(r))}</td>`+
+        `<td>${remarks?`<span class="rmk amd2">${remarks}</span>`:''}</td></tr>`;
+    }).join('');
+    const s=f=>sumField(arr,f);
+    const totSum=arr.reduce((acc,r)=>acc+totalInvAmt(r),0);
+    h+=totRowCustom(5,`Total (${arr.length})`,[s('taxable'),s('igst'),s('cgst'),s('sgst'),totSum],1);
+    return h;
+  };
+
+  document.getElementById('tblMatched').innerHTML=matchedHTML(matched);
+  document.getElementById('tblAmt').innerHTML=amtMismatchHTML(amtMismatch);
+  document.getElementById('tblBooksOnly').innerHTML=soloHTML(booksOnly,'books');
+  document.getElementById('tblPortalOnly').innerHTML=soloHTML(portalOnly,'portal');
+  document.getElementById('tblRcm').innerHTML=soloHTML(rcm,'portal');
+}
+
+function switchTab(name){
+  document.querySelectorAll('.sc').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
+  document.querySelectorAll('.tabpanel').forEach(p=>p.style.display=p.id==='panel-'+name?'block':'none');
+}
+
+function copyPortalOnly(){
+  const res=window._recon; if(!res||!res.portalOnly.length){alert('Nothing to copy.');return;}
+  const lines=res.portalOnly.map(r=>[r.supplierName||'',r.supplierGstin||'',r.docNo||'',fmtDate(r._date),r.taxable||0,r.igst||0,r.cgst||0,r.sgst||0].join('\t'));
+  const text='Vendor\tGSTIN\tInvoice No\tDate\tTaxable\tIGST\tCGST\tSGST\n'+lines.join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    const b=document.getElementById('copyBtn'),old=b.textContent;
+    b.textContent='✓ Copied';setTimeout(()=>b.textContent=old,1500);
+  }).catch(()=>alert('Could not copy automatically — please select the rows manually.'));
+}
+
+// ---- Excel export — colour-coded headers via xlsx-js-style ----
+function styleHeaderRow(ws,rowIdx,ncols,fillHex){
+  for(let c=0;c<ncols;c++){
+    const addr=XLSX.utils.encode_cell({r:rowIdx,c});
+    if(!ws[addr])ws[addr]={t:'s',v:''};
+    ws[addr].s={fill:{fgColor:{rgb:fillHex}},font:{bold:true,color:{rgb:'FFFFFF'},sz:11},alignment:{horizontal:'center',vertical:'center'}};
+  }
+}
+function styleMetaRow(ws,rowIdx){
+  const addr=XLSX.utils.encode_cell({r:rowIdx,c:0});
+  if(ws[addr])ws[addr].s={font:{bold:true,color:{rgb:'0E1B2C'}}};
+}
+function styleTotalsRow(ws,rowIdx,ncols){
+  for(let c=0;c<ncols;c++){
+    const addr=XLSX.utils.encode_cell({r:rowIdx,c});
+    if(!ws[addr])ws[addr]={t:'s',v:''};
+    ws[addr].s={font:{bold:true,color:{rgb:'FFFFFF'}},fill:{fgColor:{rgb:'0E1B2C'}}};
+  }
+}
+function mkSheet(meta,cols,dataRows,totalsRow,fillHex){
+  const aoa=[['GSTIN:',meta.gstin],['Trade Name:',meta.companyName],['Period:',meta.periodLabel],[],cols,...dataRows,totalsRow];
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  styleMetaRow(ws,0);styleMetaRow(ws,1);styleMetaRow(ws,2);
+  styleHeaderRow(ws,4,cols.length,fillHex);
+  styleTotalsRow(ws,4+1+dataRows.length,cols.length);
+  ws['!cols']=cols.map((c,i)=>({wch:i===0?22:(c&&c.toLowerCase&&c.toLowerCase().includes('remark'))?20:14}));
+  return ws;
+}
+function exportExcel(){
+  const res=window._recon; if(!res)return;
+  const meta=S.books.data.meta;
+  const matchedCols=['Vendor','GSTIN','Books Inv No','Portal Inv No','Date','Vch Type','Taxable ₹','IGST','CGST','SGST','Total Inv Amt','Remarks'];
+  const amtCols=['Vendor','GSTIN','Books Inv No','Portal Inv No','Date','Vch Type','Books ₹ (Taxable)','Portal ₹ (Taxable)','IGST','CGST','SGST','Total Inv Amt','Diff','Remarks'];
+  const soloCols=['Vendor','GSTIN','Invoice No','Date','Vch Type','Taxable ₹','IGST','CGST','SGST','Total Inv Amt','Remarks'];
+
+  const matchedAOA=arr=>arr.map(({books:b,portal:p,invMismatch})=>{
+    const diff=(b.taxable||0)-(p.taxable||0);
+    const remarks=[];
+    if(invMismatch)remarks.push('Inv No Mismatch');
+    if(diff!==0)remarks.push(`Minor Amt Mismatch ₹${fmt2(Math.abs(diff))}`);
+    if(dKey(b.date)!==dKey(p._date))remarks.push(`Date Mismatch — Book Date: ${fmtDMY(b.date)} | Portal Date: ${fmtDMY(p._date)}`);
+    if(p.amended)remarks.push('Amended');
+    return [b.vendorName||p.supplierName||'',b.vendorGstin||'',b.invoiceNo||'',p.docNo||'',fmtDate(b.date),vchLabelPortal(p),p.taxable||0,p.igst||0,p.cgst||0,p.sgst||0,totalInvAmt(p),remarks.join('; ')];
+  });
+  const matchedTotals=arr=>{
+    const s=f=>sumField(arr.map(x=>x.portal),f);
+    return [`Total (${arr.length})`,'','','','','',s('taxable'),s('igst'),s('cgst'),s('sgst'),arr.reduce((a,x)=>a+totalInvAmt(x.portal),0),''];
+  };
+  const amtAOA=arr=>arr.map(({books:b,portal:p})=>{
+    const remarks=[];
+    if(dKey(b.date)!==dKey(p._date))remarks.push(`Date Mismatch — Book Date: ${fmtDMY(b.date)} | Portal Date: ${fmtDMY(p._date)}`);
+    if(p.amended)remarks.push('Amended');
+    return [b.vendorName||p.supplierName||'',b.vendorGstin||'',b.invoiceNo||'',p.docNo||'',fmtDate(b.date),vchLabelPortal(p),
+      b.taxable||0,p.taxable||0,p.igst||0,p.cgst||0,p.sgst||0,totalInvAmt(p),(b.taxable||0)-(p.taxable||0),remarks.join('; ')];
+  });
+  const amtTotals=arr=>{
+    const bSum=sumField(arr.map(x=>x.books),'taxable'),pSum=sumField(arr.map(x=>x.portal),'taxable');
+    return [`Total (${arr.length})`,'','','','','',bSum,pSum,sumField(arr.map(x=>x.portal),'igst'),sumField(arr.map(x=>x.portal),'cgst'),sumField(arr.map(x=>x.portal),'sgst'),arr.reduce((a,x)=>a+totalInvAmt(x.portal),0),bSum-pSum,''];
+  };
+  const soloAOA=(arr,side)=>arr.map(r=>[
+    side==='books'?(r.vendorName||''):(r.supplierName||''),side==='books'?(r.vendorGstin||''):(r.supplierGstin||''),
+    side==='books'?(r.invoiceNo||''):(r.docNo||''),fmtDate(side==='books'?r.date:r._date),
+    side==='books'?vchLabelBooks(r):vchLabelPortal(r),
+    r.taxable||0,r.igst||0,r.cgst||0,r.sgst||0,totalInvAmt(r),
+    r.amended?'Amended':''
+  ]);
+  const soloTotals=arr=>{
+    const s=f=>sumField(arr,f);
+    return [`Total (${arr.length})`,'','','','',s('taxable'),s('igst'),s('cgst'),s('sgst'),arr.reduce((a,r)=>a+totalInvAmt(r),0),''];
+  };
+
+  const wb=XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb,mkSheet(meta,matchedCols,matchedAOA(res.matched),matchedTotals(res.matched),'15803D'),'Matched');
+  XLSX.utils.book_append_sheet(wb,mkSheet(meta,amtCols,amtAOA(res.amtMismatch),amtTotals(res.amtMismatch),'C2410C'),'Amount Mismatch');
+  XLSX.utils.book_append_sheet(wb,mkSheet(meta,soloCols,soloAOA(res.booksOnly,'books'),soloTotals(res.booksOnly),'B42318'),'In Books Not Portal');
+  XLSX.utils.book_append_sheet(wb,mkSheet(meta,soloCols,soloAOA(res.portalOnly,'portal'),soloTotals(res.portalOnly),'B42318'),'On Portal Not Books');
+  XLSX.utils.book_append_sheet(wb,mkSheet(meta,soloCols,soloAOA(res.rcm,'portal'),soloTotals(res.rcm),'1D4ED8'),'RCM');
+  const fname=`Reconciliation_${(meta.companyName||'Client').replace(/[^a-z0-9]/gi,'_')}_${(meta.periodLabel||'').replace(/[^a-z0-9]/gi,'_')}.xlsx`;
+  XLSX.writeFile(wb,fname);
+}
+
+function proceed(){
+  document.getElementById('r2Title').textContent=`${S.books.data.meta.companyName} — ${S.books.data.meta.periodLabel}`;
+  document.getElementById('reportSearch').value='';
+  switchTab('matched');
+  renderResults(runReconciliation());
+  document.getElementById('mtabReport').disabled=false;
+  showMainTab('report');
+}
+</script>
+</body>
+</html>
